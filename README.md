@@ -197,7 +197,7 @@ How segmentation IoU changes as distortion gets stronger. Solid = distorted, das
 
 ![Performance per SNR](./results/segmentation/performance_per_snr.png)
 
-*The fine-tuned line is being regenerated after a class mapping fix and will be updated soon.*
+The fine-tuned models (dotted) maintain stable IoU across severity levels, showing that adapting to distorted data helps the model stay robust even as image quality drops.
 
 #### IoU Comparison (Clean vs Distorted vs Enhanced vs Fine-tuned)
 

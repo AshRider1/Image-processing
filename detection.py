@@ -122,12 +122,14 @@ def compute_map(model, annotations, distort_fn=None, enhance_fn=None, n=NUM_EVAL
     for cls_name, cls_id in BDD_TO_COCO.items():
         ap = compute_ap(predictions, gt_subset, cls_id)
         per_class[cls_name] = ap if ap is not None else 0.0
-    return per_class
+    all_confs = [p["conf"] for preds in predictions.values() for p in preds]
+    avg_conf = np.mean(all_confs) if all_confs else 0
+    return per_class, avg_conf
 
 
 # Compute mean mAP with a specific distortion severity
 def compute_mmap(model, annotations, distort_fn=None, n=NUM_EVAL):
-    per_class = compute_map(model, annotations, distort_fn=distort_fn, n=n)
+    per_class, _ = compute_map(model, annotations, distort_fn=distort_fn, n=n)
     return np.mean(list(per_class.values())) if per_class else 0
 
 
@@ -228,6 +230,30 @@ def plot_comparison(results):
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "comparison.png"), dpi=150)
     plt.close()
+
+# Average confidence grouped by distortion
+def plot_confidence(conf_results):
+    groups = list(DISTORTIONS.keys())
+    clean = conf_results["clean"]
+    distorted = [conf_results[f"{g}_distorted"] for g in groups]
+    enhanced = [conf_results[f"{g}_enhanced"] for g in groups]
+    finetuned = [conf_results.get(f"{g}_finetuned", 0) for g in groups]
+
+    x = np.arange(len(groups))
+    w = 0.2
+    plt.figure(figsize=(12, 6))
+    plt.bar(x - 1.5*w, [clean] * len(groups), w, label="Clean", color="green")
+    plt.bar(x - 0.5*w, distorted, w, label="Distorted", color="red")
+    plt.bar(x + 0.5*w, enhanced, w, label="Enhanced", color="blue")
+    plt.bar(x + 1.5*w, finetuned, w, label="Fine-tuned", color="orange")
+    plt.xticks(x, groups)
+    plt.ylabel("Avg confidence")
+    plt.title("Detection: Average confidence per condition")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "confidence.png"), dpi=150)
+    plt.close()
+
 
 # Per-class bar chart with clean/distorted/enhanced/finetuned side by side
 def plot_comparison_per_class(clean_pc, dist_pc, enh_pc, ft_pc, dist_name):
@@ -368,38 +394,45 @@ def run():
     plot_sample(annotations)
     plot_all_variants(model, annotations)
 
+    conf_results = {}
+
     # Baseline on clean images
-    clean_pc = compute_map(model, annotations)
+    clean_pc, conf = compute_map(model, annotations)
     plot_map(clean_pc, "Per class AP on clean images")
     results["clean"] = np.mean(list(clean_pc.values()))
     all_per_class["clean"] = clean_pc
+    conf_results["clean"] = conf
 
     # Measure degradation on distorted images
     for name, (distort_fn, _) in DISTORTIONS.items():
-        per_class = compute_map(model, annotations, distort_fn=distort_fn)
+        per_class, conf = compute_map(model, annotations, distort_fn=distort_fn)
         plot_map(per_class, f"Per class AP on {name}", clean_per_class=clean_pc)
         results[f"{name}_distorted"] = np.mean(list(per_class.values()))
         all_per_class[f"{name}_distorted"] = per_class
+        conf_results[f"{name}_distorted"] = conf
 
     # Performance across distortion intensities
     plot_performance_per_snr(model, annotations)
 
     # Measure improvement on enhanced images
     for name, (distort_fn, enhance_fn) in DISTORTIONS.items():
-        per_class = compute_map(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
+        per_class, conf = compute_map(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
         plot_map(per_class, f"Per class AP on {name} enhanced", clean_per_class=clean_pc)
         results[f"{name}_enhanced"] = np.mean(list(per_class.values()))
         all_per_class[f"{name}_enhanced"] = per_class
+        conf_results[f"{name}_enhanced"] = conf
 
     # Fine-tune on each distortion
     for name, (distort_fn, _) in DISTORTIONS.items():
         ft_model = fine_tune(model, distort_fn, name)
-        per_class = compute_map(ft_model, annotations, distort_fn=distort_fn)
+        per_class, conf = compute_map(ft_model, annotations, distort_fn=distort_fn)
         plot_map(per_class, f"Per class AP on {name} finetuned", clean_per_class=clean_pc)
         results[f"{name}_finetuned"] = np.mean(list(per_class.values()))
         all_per_class[f"{name}_finetuned"] = per_class
+        conf_results[f"{name}_finetuned"] = conf
 
     plot_comparison(results)
+    plot_confidence(conf_results)
 
     # Per-class comparison for each distortion
     for name in DISTORTIONS:

@@ -5,6 +5,7 @@ from distortions import add_noise, add_motion_blur, add_rain
 from enhancement import denoise, deblur, derain
 from detection import run as run_detection
 from segmentation import run as run_segmentation
+from classification import run as run_classification
 
 DATASET_DIR = os.path.join("dataset", "val", "images")
 RESULTS_DIR = "results"
@@ -49,10 +50,11 @@ def show_distortions():
 
         plt.tight_layout()
         plt.savefig(os.path.join(RESULTS_DIR, f"{dist_name}.png"), dpi=150)
-        plt.show()
+        plt.close()
 
 
 if __name__ == "__main__":
     # show_distortions()
-    run_detection()
-    run_segmentation()
+    # run_detection()
+    # run_segmentation()
+    run_classification()

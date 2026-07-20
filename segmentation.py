@@ -95,10 +95,10 @@ def compute_iou(pred, gt):
     union = int((p | g).sum())
     return float((p & g).sum()) / union if union else 0
 
-# Compute mean IoU across n images (optionally distort/enhance)
+# Compute mean IoU and precision across n images
 def compute_ious(model, annotations, distort_fn=None, enhance_fn=None, road_class=ROAD_CLASS, n=NUM_EVAL):
     images_dir = os.path.join(DATASET_DIR, "val", "images")
-    ious = []
+    ious, precs = [], []
     for name in list(annotations.keys())[:n]:
         img = cv2.imread(os.path.join(images_dir, name))
         gt = make_mask(annotations[name], img.shape[0], img.shape[1])
@@ -108,11 +108,14 @@ def compute_ious(model, annotations, distort_fn=None, enhance_fn=None, road_clas
             img = enhance_fn(img)
         pred = run_segmentation(model, img, road_class=road_class)
         ious.append(compute_iou(pred, gt))
-    return np.mean(ious) if ious else 0
+        p, g = pred.astype(bool), gt.astype(bool)
+        precs.append(float((p & g).sum()) / p.sum() if p.sum() > 0 else 0)
+    return np.mean(ious) if ious else 0, np.mean(precs) if precs else 0
 
 # Compute mean IoU with a specific distortion severity
 def compute_miou(model, annotations, distort_fn=None, n=NUM_EVAL):
-    return compute_ious(model, annotations, distort_fn=distort_fn, n=n)
+    iou, _ = compute_ious(model, annotations, distort_fn=distort_fn, n=n)
+    return iou
 
 # Compute SNR in dB between clean and distorted image
 def compute_snr(clean, distorted):
@@ -186,6 +189,30 @@ def plot_comparison(results):
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "comparison.png"), dpi=150)
     plt.close()
+
+# Precision grouped by distortion
+def plot_precision(results):
+    groups = list(DISTORTIONS.keys())
+    baseline = results["clean"]
+    distorted = [results[f"{g}_distorted"] for g in groups]
+    enhanced = [results[f"{g}_enhanced"] for g in groups]
+    finetuned = [results[f"{g}_finetuned"] for g in groups]
+
+    x = np.arange(len(groups))
+    w = 0.2
+    plt.figure(figsize=(12, 6))
+    plt.bar(x - 1.5*w, [baseline] * len(groups), w, label="Clean", color="green")
+    plt.bar(x - 0.5*w, distorted, w, label="Distorted", color="red")
+    plt.bar(x + 0.5*w, enhanced, w, label="Enhanced", color="blue")
+    plt.bar(x + 1.5*w, finetuned, w, label="Fine-tuned", color="orange")
+    plt.xticks(x, groups)
+    plt.ylabel("Precision")
+    plt.title("Segmentation: Precision per condition")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "precision.png"), dpi=150)
+    plt.close()
+
 
 # Show one image with segmentation overlay: per distortion
 def plot_all_variants(model, annotations, idx=0):
@@ -306,24 +333,27 @@ def run():
     plot_sample(annotations)
     plot_all_variants(model, annotations)
 
+    iou_results, prec_results = {}, {}
+
     # Baseline on clean images
-    results["clean"] = compute_ious(model, annotations)
+    iou_results["clean"], prec_results["clean"] = compute_ious(model, annotations)
 
     # Measure degradation on distorted images
     for name, (distort_fn, _) in DISTORTIONS.items():
-        results[f"{name}_distorted"] = compute_ious(model, annotations, distort_fn=distort_fn)
+        iou_results[f"{name}_distorted"], prec_results[f"{name}_distorted"] = compute_ious(model, annotations, distort_fn=distort_fn)
 
     # Performance across distortion intensities
     plot_performance_per_snr(model, annotations)
 
     # Measure improvement on enhanced images
     for name, (distort_fn, enhance_fn) in DISTORTIONS.items():
-        results[f"{name}_enhanced"] = compute_ious(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
+        iou_results[f"{name}_enhanced"], prec_results[f"{name}_enhanced"] = compute_ious(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
 
     # Fine-tune on each distortion
     for name, (distort_fn, _) in DISTORTIONS.items():
         ft_model = fine_tune(model, distort_fn, name)
-        results[f"{name}_finetuned"] = compute_ious(ft_model, annotations, distort_fn=distort_fn, road_class=FT_ROAD_CLASS)
+        iou_results[f"{name}_finetuned"], prec_results[f"{name}_finetuned"] = compute_ious(ft_model, annotations, distort_fn=distort_fn, road_class=FT_ROAD_CLASS)
 
-    # Comparison chart
-    plot_comparison(results)
+    # Comparison charts
+    plot_comparison(iou_results)
+    plot_precision(prec_results)

@@ -127,8 +127,8 @@ def compute_snr(clean, distorted):
         return float("inf")
     return 10 * np.log10(signal_power / noise_power)
 
-# Performance per SNR (IoU vs SNR in dB)
-def plot_performance_per_snr(model, annotations):
+# Performance per SNR (IoU vs SNR in dB) with distorted + enhanced + fine-tuned
+def plot_performance_per_snr(model, annotations, ft_models=None):
     noise_sev = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
     blur_sev = [3, 5, 9, 13, 17, 21, 25]
     rain_sev = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
@@ -140,27 +140,44 @@ def plot_performance_per_snr(model, annotations):
     blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
     rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
 
-    noise_ious = [compute_miou(model, annotations, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
-    blur_ious = [compute_miou(model, annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
-    rain_ious = [compute_miou(model, annotations, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
+    noise_dist = [compute_miou(model, annotations, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
+    blur_dist = [compute_miou(model, annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
+    rain_dist = [compute_miou(model, annotations, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
+
+    noise_enh = [compute_miou(model, annotations, lambda img, s=s: denoise(add_noise(img, severity=s))) for s in noise_sev]
+    blur_enh = [compute_miou(model, annotations, lambda img, k=k: deblur(add_motion_blur(img, kernel_size=k))) for k in blur_sev]
+    rain_enh = [compute_miou(model, annotations, lambda img, i=i: derain(add_rain(img, intensity=i))) for i in rain_sev]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    axes[0].plot(noise_snrs, noise_ious, "o-")
+    axes[0].plot(noise_snrs, noise_dist, "o-", label="Distorted")
+    axes[0].plot(noise_snrs, noise_enh, "o--", label="Enhanced")
+    axes[1].plot(blur_snrs, blur_dist, "s-", label="Distorted")
+    axes[1].plot(blur_snrs, blur_enh, "s--", label="Enhanced")
+    axes[2].plot(rain_snrs, rain_dist, "^-", label="Distorted")
+    axes[2].plot(rain_snrs, rain_enh, "^--", label="Enhanced")
+
+    if ft_models:
+        noise_ft = [compute_miou(ft_models["noise"], annotations, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
+        blur_ft = [compute_miou(ft_models["motion_blur"], annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
+        rain_ft = [compute_miou(ft_models["rain"], annotations, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
+        axes[0].plot(noise_snrs, noise_ft, "o:", label="Fine-tuned")
+        axes[1].plot(blur_snrs, blur_ft, "s:", label="Fine-tuned")
+        axes[2].plot(rain_snrs, rain_ft, "^:", label="Fine-tuned")
+
     axes[0].set_xlabel("SNR (dB) <- noisier")
-    axes[0].set_ylabel("mIoU")
+    axes[0].set_ylabel("IoU")
     axes[0].set_title("Noise")
     axes[0].invert_xaxis()
-
-    axes[1].plot(blur_snrs, blur_ious, "s-")
+    axes[0].legend()
     axes[1].set_xlabel("SNR (dB) <- blurrier")
     axes[1].set_title("Motion Blur")
     axes[1].invert_xaxis()
-
-    axes[2].plot(rain_snrs, rain_ious, "^-")
+    axes[1].legend()
     axes[2].set_xlabel("SNR (dB) <- rainier")
     axes[2].set_title("Rain")
     axes[2].invert_xaxis()
+    axes[2].legend()
 
     plt.suptitle("Performance per SNR", fontsize=14)
     plt.tight_layout()
@@ -342,17 +359,18 @@ def run():
     for name, (distort_fn, _) in DISTORTIONS.items():
         iou_results[f"{name}_distorted"], prec_results[f"{name}_distorted"] = compute_ious(model, annotations, distort_fn=distort_fn)
 
-    # Performance across distortion intensities
-    plot_performance_per_snr(model, annotations)
-
     # Measure improvement on enhanced images
     for name, (distort_fn, enhance_fn) in DISTORTIONS.items():
         iou_results[f"{name}_enhanced"], prec_results[f"{name}_enhanced"] = compute_ious(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
 
     # Fine-tune on each distortion
+    ft_models = {}
     for name, (distort_fn, _) in DISTORTIONS.items():
-        ft_model = fine_tune(model, distort_fn, name)
-        iou_results[f"{name}_finetuned"], prec_results[f"{name}_finetuned"] = compute_ious(ft_model, annotations, distort_fn=distort_fn, road_class=FT_ROAD_CLASS)
+        ft_models[name] = fine_tune(model, distort_fn, name)
+        iou_results[f"{name}_finetuned"], prec_results[f"{name}_finetuned"] = compute_ious(ft_models[name], annotations, distort_fn=distort_fn, road_class=FT_ROAD_CLASS)
+
+    # Performance across distortion intensities (distorted + enhanced + fine-tuned)
+    plot_performance_per_snr(model, annotations, ft_models=ft_models)
 
     # Comparison charts
     plot_comparison(iou_results)

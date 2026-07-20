@@ -54,7 +54,20 @@ def show_distortions():
 
 
 if __name__ == "__main__":
-    # show_distortions()
-    # run_detection()
-    # run_segmentation()
-    run_classification()
+    import sys
+    tasks = {
+        "distortions": show_distortions,
+        "detection": run_detection,
+        "segmentation": run_segmentation,
+        "classification": run_classification,
+    }
+
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if arg in tasks:
+                tasks[arg]()
+            else:
+                print(f"Unknown task: {arg}. Options: {', '.join(tasks.keys())}, all")
+    else:
+        for fn in tasks.values():
+            fn()

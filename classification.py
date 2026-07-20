@@ -21,16 +21,18 @@ DISTORTIONS = {
 }
 
 
-# Load annotations with timeofday labels (daytime=1, night=0)
+CLASSES = {"city street": 0, "highway": 1, "residential": 2}
+
+# Load annotations with scene labels
 def load_annotations(split="val"):
     path = os.path.join(DATASET_DIR, split, "annotations", f"bdd100k_labels_images_{split}.json")
     with open(path) as f:
         data = json.load(f)
     annotations = {}
     for item in data:
-        tod = item.get("attributes", {}).get("timeofday", "")
-        if tod in ("daytime", "night"):
-            annotations[item["name"]] = 1 if tod == "daytime" else 0
+        scene = item.get("attributes", {}).get("scene", "")
+        if scene in CLASSES:
+            annotations[item["name"]] = CLASSES[scene]
     return annotations
 
 
@@ -69,13 +71,11 @@ def train_svm(train_ann):
 def evaluate(svm, annotations, distort_fn=None, enhance_fn=None):
     X, y = get_features(annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
     preds = svm.predict(X)
-    day_mask = y == 1
-    night_mask = y == 0
-    return {
-        "overall": accuracy_score(y, preds),
-        "daytime": accuracy_score(y[day_mask], preds[day_mask]) if day_mask.any() else 0,
-        "night": accuracy_score(y[night_mask], preds[night_mask]) if night_mask.any() else 0,
-    }
+    result = {"overall": accuracy_score(y, preds)}
+    for cls_name, cls_id in CLASSES.items():
+        mask = y == cls_id
+        result[cls_name] = accuracy_score(y[mask], preds[mask]) if mask.any() else 0
+    return result
 
 
 # Compute SNR in dB
@@ -89,30 +89,24 @@ def compute_snr(clean, distorted):
     return 10 * np.log10(signal_power / noise_power)
 
 
-# Plot sample: show daytime vs night examples
+# Plot sample: show examples per scene class
 def plot_sample(annotations):
     images_dir = os.path.join(DATASET_DIR, "val", "images")
-    day_imgs, night_imgs = [], []
+    class_names = list(CLASSES.keys())
+    samples = {c: [] for c in class_names}
     for name, label in annotations.items():
-        if label == 1 and len(day_imgs) < 3:
-            day_imgs.append((name, "daytime"))
-        elif label == 0 and len(night_imgs) < 3:
-            night_imgs.append((name, "night"))
-        if len(day_imgs) == 3 and len(night_imgs) == 3:
-            break
+        for cls_name, cls_id in CLASSES.items():
+            if label == cls_id and len(samples[cls_name]) < 3:
+                samples[cls_name].append(name)
 
-    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
-    for col, (name, label) in enumerate(day_imgs):
-        img = cv2.cvtColor(cv2.imread(os.path.join(images_dir, name)), cv2.COLOR_BGR2RGB)
-        axes[0][col].imshow(img)
-        axes[0][col].set_title(label)
-        axes[0][col].axis("off")
-    for col, (name, label) in enumerate(night_imgs):
-        img = cv2.cvtColor(cv2.imread(os.path.join(images_dir, name)), cv2.COLOR_BGR2RGB)
-        axes[1][col].imshow(img)
-        axes[1][col].set_title(label)
-        axes[1][col].axis("off")
-    plt.suptitle("Sample: Daytime vs Night", fontsize=14)
+    fig, axes = plt.subplots(len(class_names), 3, figsize=(15, 4 * len(class_names)))
+    for row, cls_name in enumerate(class_names):
+        for col, name in enumerate(samples[cls_name][:3]):
+            img = cv2.cvtColor(cv2.imread(os.path.join(images_dir, name)), cv2.COLOR_BGR2RGB)
+            axes[row][col].imshow(img)
+            axes[row][col].set_title(cls_name)
+            axes[row][col].axis("off")
+    plt.suptitle("Sample: Scene Classification", fontsize=14)
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "sample_gt.png"), dpi=150)
     plt.close()
@@ -150,27 +144,37 @@ def plot_performance_per_snr(svm, annotations):
     blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
     rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
 
-    noise_accs = [evaluate(svm, annotations, lambda img, s=s: add_noise(img, severity=s))["overall"] for s in noise_sev]
-    blur_accs = [evaluate(svm, annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k))["overall"] for k in blur_sev]
-    rain_accs = [evaluate(svm, annotations, lambda img, i=i: add_rain(img, intensity=i))["overall"] for i in rain_sev]
+    noise_dist = [evaluate(svm, annotations, lambda img, s=s: add_noise(img, severity=s))["overall"] for s in noise_sev]
+    blur_dist = [evaluate(svm, annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k))["overall"] for k in blur_sev]
+    rain_dist = [evaluate(svm, annotations, lambda img, i=i: add_rain(img, intensity=i))["overall"] for i in rain_sev]
+
+    noise_enh = [evaluate(svm, annotations, lambda img, s=s: denoise(add_noise(img, severity=s)))["overall"] for s in noise_sev]
+    blur_enh = [evaluate(svm, annotations, lambda img, k=k: deblur(add_motion_blur(img, kernel_size=k)))["overall"] for k in blur_sev]
+    rain_enh = [evaluate(svm, annotations, lambda img, i=i: derain(add_rain(img, intensity=i)))["overall"] for i in rain_sev]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    axes[0].plot(noise_snrs, noise_accs, "o-")
+    axes[0].plot(noise_snrs, noise_dist, "o-", label="Distorted")
+    axes[0].plot(noise_snrs, noise_enh, "o--", label="Enhanced")
     axes[0].set_xlabel("SNR (dB) <- noisier")
     axes[0].set_ylabel("Accuracy")
     axes[0].set_title("Noise")
     axes[0].invert_xaxis()
+    axes[0].legend()
 
-    axes[1].plot(blur_snrs, blur_accs, "s-")
+    axes[1].plot(blur_snrs, blur_dist, "s-", label="Distorted")
+    axes[1].plot(blur_snrs, blur_enh, "s--", label="Enhanced")
     axes[1].set_xlabel("SNR (dB) <- blurrier")
     axes[1].set_title("Motion Blur")
     axes[1].invert_xaxis()
+    axes[1].legend()
 
-    axes[2].plot(rain_snrs, rain_accs, "^-")
+    axes[2].plot(rain_snrs, rain_dist, "^-", label="Distorted")
+    axes[2].plot(rain_snrs, rain_enh, "^--", label="Enhanced")
     axes[2].set_xlabel("SNR (dB) <- rainier")
     axes[2].set_title("Rain")
     axes[2].invert_xaxis()
+    axes[2].legend()
 
     plt.suptitle("Performance per SNR", fontsize=14)
     plt.tight_layout()
@@ -203,10 +207,10 @@ def plot_comparison(results):
 # Per-class accuracy comparison
 def plot_comparison_per_class(results):
     groups = list(DISTORTIONS.keys())
-    classes = ["daytime", "night"]
+    class_names = list(CLASSES.keys())
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    for i, cls in enumerate(classes):
+    fig, axes = plt.subplots(1, len(class_names), figsize=(6 * len(class_names), 6))
+    for i, cls in enumerate(class_names):
         baseline = results["clean"][cls]
         distorted = [results[f"{g}_distorted"][cls] for g in groups]
         enhanced = [results[f"{g}_enhanced"][cls] for g in groups]

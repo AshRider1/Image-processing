@@ -76,39 +76,78 @@ def compute_iou(box1, box2):
     union = (box1[2]-box1[0])*(box1[3]-box1[1]) + (box2[2]-box2[0])*(box2[3]-box2[1]) - inter
     return inter / union if union > 0 else 0
 
-# Compute per-class IoU (optionally distort/enhance each image)
-def compute_ious(model, annotations, distort_fn=None, enhance_fn=None, n=NUM_EVAL):
-    class_ious = {name: [] for name in BDD_TO_COCO}
-    for name in list(annotations.keys())[:n]:
-        img = cv2.imread(os.path.join(DATASET_DIR, "val", "images", name))
+# Compute AP0.5 for one class: sort preds by confidence, match to GT, compute precision-recall
+def compute_ap(predictions, ground_truths, class_id):
+    preds, n_gt = [], 0
+    for img in ground_truths:
+        n_gt += sum(1 for g in ground_truths[img] if g["class"] == class_id)
+        for p in predictions.get(img, []):
+            if p["class"] == class_id:
+                preds.append((img, p))
+    if n_gt == 0:
+        return None
+
+    preds.sort(key=lambda x: x[1]["conf"], reverse=True)
+    tp, matched = [], {img: set() for img in ground_truths}
+
+    for img, pred in preds:
+        ious = [compute_iou(pred["bbox"], g["bbox"]) for g in ground_truths[img] if g["class"] == class_id]
+        best = max(range(len(ious)), key=lambda j: ious[j]) if ious else -1
+        if best >= 0 and ious[best] >= 0.5 and best not in matched[img]:
+            tp.append(1)
+            matched[img].add(best)
+        else:
+            tp.append(0)
+
+    tp = np.cumsum(tp)
+    precision = tp / np.arange(1, len(tp) + 1)
+    recall = tp / n_gt
+    return sum(precision[recall >= t].max() if (recall >= t).any() else 0 for t in np.arange(0, 1.1, 0.1)) / 11
+
+
+# Compute per-class mAP0.5 (optionally distort/enhance each image)
+def compute_map(model, annotations, distort_fn=None, enhance_fn=None, n=NUM_EVAL):
+    images_dir = os.path.join(DATASET_DIR, "val", "images")
+    filenames = list(annotations.keys())[:n]
+    predictions = {}
+    for name in filenames:
+        img = cv2.imread(os.path.join(images_dir, name))
         if distort_fn:
             img = distort_fn(img)
         if enhance_fn:
             img = enhance_fn(img)
-        preds = run_detection(model, img)
-        for pred in preds:
-            cls_name = COCO_TO_BDD[pred["class"]]
-            best = max((compute_iou(pred["bbox"], gt["bbox"])
-                        for gt in annotations[name] if gt["class"] == pred["class"]), default=0)
-            class_ious[cls_name].append(best)
-    per_class = {k: np.mean(v) if v else 0.0 for k, v in class_ious.items()}
+        predictions[name] = run_detection(model, img)
+    gt_subset = {k: annotations[k] for k in filenames}
+    per_class = {}
+    for cls_name, cls_id in BDD_TO_COCO.items():
+        ap = compute_ap(predictions, gt_subset, cls_id)
+        per_class[cls_name] = ap if ap is not None else 0.0
     return per_class
 
-# Compute mean IoU with a specific distortion severity
-def compute_miou(model, annotations, distort_fn=None, n=NUM_EVAL):
-    per_class = compute_ious(model, annotations, distort_fn=distort_fn, n=n)
+
+# Compute mean mAP with a specific distortion severity
+def compute_mmap(model, annotations, distort_fn=None, n=NUM_EVAL):
+    per_class = compute_map(model, annotations, distort_fn=distort_fn, n=n)
     return np.mean(list(per_class.values())) if per_class else 0
 
-# Plot per-class IoU bar chart with mean line
-def plot_ious(per_class, title="Per class IoU"):
+
+# Plot per-class AP bar chart, optionally with clean baseline side by side
+def plot_map(per_class, title="Per class AP", clean_per_class=None):
     classes = sorted(per_class, key=per_class.get, reverse=True)
     values = [per_class[c] for c in classes]
-    miou = np.mean(values)
+    mmap = np.mean(values)
+    x = np.arange(len(classes))
+    w = 0.35 if clean_per_class else 0.7
     plt.figure(figsize=(12, 6))
-    plt.bar(range(len(classes)), values)
-    plt.axhline(y=miou, color="red", linestyle="--", label=f"mIoU = {miou:.3f}")
-    plt.xticks(range(len(classes)), classes, rotation=45, ha="right")
-    plt.ylabel("IoU")
+    if clean_per_class:
+        clean_values = [clean_per_class.get(c, 0) for c in classes]
+        plt.bar(x - w/2, clean_values, w, label="Clean", color="green", alpha=0.5)
+        plt.bar(x + w/2, values, w, label="Current")
+    else:
+        plt.bar(x, values, w)
+    plt.axhline(y=mmap, color="red", linestyle="--", label=f"mAP0.5 = {mmap:.3f}")
+    plt.xticks(x, classes, rotation=45, ha="right")
+    plt.ylabel("AP0.5")
     plt.title(title)
     plt.legend()
     plt.tight_layout()
@@ -140,24 +179,24 @@ def plot_performance_per_snr(model, annotations):
     blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
     rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
 
-    noise_ious = [compute_miou(model, annotations, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
-    blur_ious = [compute_miou(model, annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
-    rain_ious = [compute_miou(model, annotations, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
+    noise_maps = [compute_mmap(model, annotations, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
+    blur_maps = [compute_mmap(model, annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
+    rain_maps = [compute_mmap(model, annotations, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    axes[0].plot(noise_snrs, noise_ious, "o-")
+    axes[0].plot(noise_snrs, noise_maps, "o-")
     axes[0].set_xlabel("SNR (dB) <- noisier")
-    axes[0].set_ylabel("mIoU")
+    axes[0].set_ylabel("mAP0.5")
     axes[0].set_title("Noise")
     axes[0].invert_xaxis()
 
-    axes[1].plot(blur_snrs, blur_ious, "s-")
+    axes[1].plot(blur_snrs, blur_maps, "s-")
     axes[1].set_xlabel("SNR (dB) <- blurrier")
     axes[1].set_title("Motion Blur")
     axes[1].invert_xaxis()
 
-    axes[2].plot(rain_snrs, rain_ious, "^-")
+    axes[2].plot(rain_snrs, rain_maps, "^-")
     axes[2].set_xlabel("SNR (dB) <- rainier")
     axes[2].set_title("Rain")
     axes[2].invert_xaxis()
@@ -183,8 +222,8 @@ def plot_comparison(results):
     plt.bar(x + 0.5*w, enhanced, w, label="Enhanced", color="blue")
     plt.bar(x + 1.5*w, finetuned, w, label="Fine-tuned", color="orange")
     plt.xticks(x, groups)
-    plt.ylabel("mIoU")
-    plt.title("Comparison: Clean vs Distorted vs Enhanced vs Fine-tuned")
+    plt.ylabel("mAP0.5")
+    plt.title("Detection: Clean vs Distorted vs Enhanced vs Fine-tuned")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "comparison.png"), dpi=150)
@@ -310,14 +349,14 @@ def run():
     plot_all_variants(model, annotations)
 
     # Baseline on clean images
-    per_class = compute_ious(model, annotations)
-    plot_ious(per_class, "Per class IoU on clean images")
-    results["clean"] = np.mean(list(per_class.values()))
+    clean_pc = compute_map(model, annotations)
+    plot_map(clean_pc, "Per class AP on clean images")
+    results["clean"] = np.mean(list(clean_pc.values()))
 
     # Measure degradation on distorted images
     for name, (distort_fn, _) in DISTORTIONS.items():
-        per_class = compute_ious(model, annotations, distort_fn=distort_fn)
-        plot_ious(per_class, f"Per class IoU on {name}")
+        per_class = compute_map(model, annotations, distort_fn=distort_fn)
+        plot_map(per_class, f"Per class AP on {name}", clean_per_class=clean_pc)
         results[f"{name}_distorted"] = np.mean(list(per_class.values()))
 
     # Performance across distortion intensities
@@ -325,15 +364,15 @@ def run():
 
     # Measure improvement on enhanced images
     for name, (distort_fn, enhance_fn) in DISTORTIONS.items():
-        per_class = compute_ious(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
-        plot_ious(per_class, f"Per class IoU on {name} enhanced")
+        per_class = compute_map(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
+        plot_map(per_class, f"Per class AP on {name} enhanced", clean_per_class=clean_pc)
         results[f"{name}_enhanced"] = np.mean(list(per_class.values()))
 
     # Fine-tune on each distortion
     for name, (distort_fn, _) in DISTORTIONS.items():
         ft_model = fine_tune(model, distort_fn, name)
-        per_class = compute_ious(ft_model, annotations, distort_fn=distort_fn)
-        plot_ious(per_class, f"Per class IoU on {name} finetuned")
+        per_class = compute_map(ft_model, annotations, distort_fn=distort_fn)
+        plot_map(per_class, f"Per class AP on {name} finetuned", clean_per_class=clean_pc)
         results[f"{name}_finetuned"] = np.mean(list(per_class.values()))
 
     plot_comparison(results)

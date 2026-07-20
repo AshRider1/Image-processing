@@ -3,7 +3,7 @@ import cv2
 
 
 # Add Gaussian noise
-def add_noise(image, severity=0.1):
+def add_noise(image, severity=0.2):
     sigma = severity * 255
     noise = np.random.normal(0, sigma, image.shape)
     return np.clip(image + noise, 0, 255).astype(np.uint8)

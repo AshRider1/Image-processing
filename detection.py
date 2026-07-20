@@ -229,6 +229,25 @@ def plot_comparison(results):
     plt.savefig(os.path.join(RESULTS_DIR, "comparison.png"), dpi=150)
     plt.close()
 
+# Per-class bar chart with clean/distorted/enhanced/finetuned side by side
+def plot_comparison_per_class(clean_pc, dist_pc, enh_pc, ft_pc, dist_name):
+    classes = sorted(clean_pc, key=clean_pc.get, reverse=True)
+    x = np.arange(len(classes))
+    w = 0.2
+    plt.figure(figsize=(12, 6))
+    plt.bar(x - 1.5*w, [clean_pc[c] for c in classes], w, label="Clean", color="green")
+    plt.bar(x - 0.5*w, [dist_pc[c] for c in classes], w, label="Distorted", color="red")
+    plt.bar(x + 0.5*w, [enh_pc[c] for c in classes], w, label="Enhanced", color="blue")
+    plt.bar(x + 1.5*w, [ft_pc[c] for c in classes], w, label="Fine-tuned", color="orange")
+    plt.xticks(x, classes, rotation=45, ha="right")
+    plt.ylabel("AP0.5")
+    plt.title(f"Per class AP comparison - {dist_name}")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, f"comparison_per_class_{dist_name}.png"), dpi=150)
+    plt.close()
+
+
 # Show one image with detections: per distortion + all combined
 def plot_all_variants(model, annotations):
     name = list(annotations.keys())[0]
@@ -343,6 +362,7 @@ def run():
     model = YOLO("yolov8n.pt")
     annotations = load_annotations("val")
     results = {}
+    all_per_class = {}
 
     # Sample visualizations
     plot_sample(annotations)
@@ -352,12 +372,14 @@ def run():
     clean_pc = compute_map(model, annotations)
     plot_map(clean_pc, "Per class AP on clean images")
     results["clean"] = np.mean(list(clean_pc.values()))
+    all_per_class["clean"] = clean_pc
 
     # Measure degradation on distorted images
     for name, (distort_fn, _) in DISTORTIONS.items():
         per_class = compute_map(model, annotations, distort_fn=distort_fn)
         plot_map(per_class, f"Per class AP on {name}", clean_per_class=clean_pc)
         results[f"{name}_distorted"] = np.mean(list(per_class.values()))
+        all_per_class[f"{name}_distorted"] = per_class
 
     # Performance across distortion intensities
     plot_performance_per_snr(model, annotations)
@@ -367,6 +389,7 @@ def run():
         per_class = compute_map(model, annotations, distort_fn=distort_fn, enhance_fn=enhance_fn)
         plot_map(per_class, f"Per class AP on {name} enhanced", clean_per_class=clean_pc)
         results[f"{name}_enhanced"] = np.mean(list(per_class.values()))
+        all_per_class[f"{name}_enhanced"] = per_class
 
     # Fine-tune on each distortion
     for name, (distort_fn, _) in DISTORTIONS.items():
@@ -374,6 +397,13 @@ def run():
         per_class = compute_map(ft_model, annotations, distort_fn=distort_fn)
         plot_map(per_class, f"Per class AP on {name} finetuned", clean_per_class=clean_pc)
         results[f"{name}_finetuned"] = np.mean(list(per_class.values()))
+        all_per_class[f"{name}_finetuned"] = per_class
 
     plot_comparison(results)
+
+    # Per-class comparison for each distortion
+    for name in DISTORTIONS:
+        plot_comparison_per_class(clean_pc, all_per_class[f"{name}_distorted"],
+                                  all_per_class[f"{name}_enhanced"],
+                                  all_per_class[f"{name}_finetuned"], name)
 

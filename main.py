@@ -3,6 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 from distortions import add_noise, add_motion_blur, add_rain
 from enhancement import denoise, deblur, derain
+from detection import run as run_detection
 
 DATASET_DIR = os.path.join("dataset", "val", "images")
 RESULTS_DIR = "results"
@@ -51,4 +52,5 @@ def show_distortions():
 
 
 if __name__ == "__main__":
-    show_distortions()
+    # show_distortions()
+    run_detection()

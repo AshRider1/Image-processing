@@ -9,12 +9,12 @@ from enhancement import denoise, deblur, derain
 
 DATASET_DIR = "dataset"
 RESULTS_DIR = os.path.join("results", "detection")
-NUM_EVAL = 10
+NUM_EVAL = 100
 
 # BDD100K to COCO class mapping
 BDD_TO_COCO = {
-    "person": 0, "bike": 1, "car": 2, "motor": 3,
-    "bus": 5, "train": 6, "truck": 7, "traffic light": 9,
+    "person": 0, "car": 2, "motor": 3,
+    "bus": 5, "truck": 7, "traffic light": 9,
 }
 COCO_TO_BDD = {v: k for k, v in BDD_TO_COCO.items()}
 
@@ -56,7 +56,7 @@ def plot_sample(annotations):
     plt.title("Sample with GT labels")
     plt.axis("off")
     plt.savefig(os.path.join(RESULTS_DIR, "sample_gt.png"), dpi=150)
-    plt.show()
+    plt.close()
 
 # Run YOLOv8 on an image
 def run_detection(model, img):
@@ -113,7 +113,7 @@ def plot_ious(per_class, title="Per class IoU"):
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, f"{title.replace(' ', '_')}.png"), dpi=150)
-    plt.show()
+    plt.close()
 
 # Compute SNR in dB between clean and distorted image
 def compute_snr(clean, distorted):
@@ -165,7 +165,7 @@ def plot_performance_per_snr(model, annotations):
     plt.suptitle("Performance per SNR", fontsize=14)
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "performance_per_snr.png"), dpi=150)
-    plt.show()
+    plt.close()
 
 # Comparison: baseline vs distorted vs enhanced
 def plot_comparison(results):
@@ -188,7 +188,7 @@ def plot_comparison(results):
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "comparison.png"), dpi=150)
-    plt.show()
+    plt.close()
 
 # Show one image with detections: per distortion + all combined
 def plot_all_variants(model, annotations):
@@ -238,7 +238,7 @@ def plot_all_variants(model, annotations):
     plt.suptitle("YOLOv8 Detection: Clean vs Distorted vs Enhanced", fontsize=14)
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "all_variants.png"), dpi=150)
-    plt.show()
+    plt.close()
 
 # Save YOLO format label file
 def save_yolo_label(txt_path, boxes_xyxy, cls_ids, w, h):
@@ -254,7 +254,7 @@ def save_yolo_label(txt_path, boxes_xyxy, cls_ids, w, h):
 
 
 # Create pseudo-labels from pretrained model on clean images, then distort
-def create_finetune_data(model, distort_fn, out_dir, n=NUM_EVAL):
+def create_finetune_data(model, distort_fn, out_dir, n=100):
     images_dir = os.path.join(DATASET_DIR, "train", "images")
     img_out = os.path.join(out_dir, "images", "train")
     lbl_out = os.path.join(out_dir, "labels", "train")

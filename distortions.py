@@ -10,7 +10,7 @@ def add_noise(image, severity=0.1):
 
 
 # Add motion blur
-def add_motion_blur(image, kernel_size=15, angle=0):
+def add_motion_blur(image, kernel_size=25, angle=0):
     kernel = np.zeros((kernel_size, kernel_size))
     kernel[kernel_size // 2, :] = 1.0 / kernel_size
     M = cv2.getRotationMatrix2D((kernel_size / 2, kernel_size / 2), angle, 1.0)

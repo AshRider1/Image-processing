@@ -3,3 +3,4 @@ __pycache__/
 *.pt
 yolo_data/
 runs/
+seg_data/

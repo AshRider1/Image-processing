@@ -191,6 +191,30 @@ Each row applies a different distortion to the same image. The green overlay is 
 
 On clean images the model captures the road surface well. Under noise, the prediction becomes patchy. Motion blur causes the model to either over-predict or under-predict road areas. After enhancement, the predictions generally look closer to the clean version.
 
+#### IoU vs SNR (Performance per Distortion Level)
+
+How segmentation IoU changes as distortion gets stronger. Solid = distorted, dashed = enhanced, dotted = fine-tuned.
+
+![Performance per SNR](./results/segmentation/performance_per_snr.png)
+
+*The fine-tuned line is being regenerated after a class mapping fix and will be updated soon.*
+
+#### IoU Comparison (Clean vs Distorted vs Enhanced vs Fine-tuned)
+
+Four bars per distortion showing overall pixel IoU.
+
+![Comparison](./results/segmentation/comparison.png)
+
+The clean baseline sits around 0.48. Distortion drops it to 0.35-0.41 depending on the type. Enhancement recovers some of the loss. Fine-tuning on motion blur performs best, nearly matching the clean baseline.
+
+#### Precision (Clean vs Distorted vs Enhanced vs Fine-tuned)
+
+What fraction of the predicted road is actually road, grouped by distortion.
+
+![Precision](./results/segmentation/precision.png)
+
+Precision tells a different story than IoU. Even when IoU drops, precision can stay high if the model simply predicts less road rather than predicting road in wrong places.
+
 ---
 
 ### Scene Classification (HOG + SVM)

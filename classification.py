@@ -156,6 +156,9 @@ def plot_performance_per_snr(svm, annotations):
 
     axes[0].plot(noise_snrs, noise_dist, "o-", label="Distorted")
     axes[0].plot(noise_snrs, noise_enh, "o--", label="Enhanced")
+    for ax in axes:
+        ax.set_ylim(0, 1)
+
     axes[0].set_xlabel("SNR (dB) <- noisier")
     axes[0].set_ylabel("Accuracy")
     axes[0].set_title("Noise")

@@ -113,8 +113,8 @@ def compute_ious(model, annotations, distort_fn=None, enhance_fn=None, road_clas
     return np.mean(ious) if ious else 0, np.mean(precs) if precs else 0
 
 # Compute mean IoU with a specific distortion severity
-def compute_miou(model, annotations, distort_fn=None, n=NUM_EVAL):
-    iou, _ = compute_ious(model, annotations, distort_fn=distort_fn, n=n)
+def compute_miou(model, annotations, distort_fn=None, road_class=ROAD_CLASS, n=NUM_EVAL):
+    iou, _ = compute_ious(model, annotations, distort_fn=distort_fn, road_class=road_class, n=n)
     return iou
 
 # Compute SNR in dB between clean and distorted image
@@ -158,9 +158,9 @@ def plot_performance_per_snr(model, annotations, ft_models=None):
     axes[2].plot(rain_snrs, rain_enh, "^--", label="Enhanced")
 
     if ft_models:
-        noise_ft = [compute_miou(ft_models["noise"], annotations, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
-        blur_ft = [compute_miou(ft_models["motion_blur"], annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
-        rain_ft = [compute_miou(ft_models["rain"], annotations, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
+        noise_ft = [compute_miou(ft_models["noise"], annotations, lambda img, s=s: add_noise(img, severity=s), road_class=FT_ROAD_CLASS) for s in noise_sev]
+        blur_ft = [compute_miou(ft_models["motion_blur"], annotations, lambda img, k=k: add_motion_blur(img, kernel_size=k), road_class=FT_ROAD_CLASS) for k in blur_sev]
+        rain_ft = [compute_miou(ft_models["rain"], annotations, lambda img, i=i: add_rain(img, intensity=i), road_class=FT_ROAD_CLASS) for i in rain_sev]
         axes[0].plot(noise_snrs, noise_ft, "o:", label="Fine-tuned")
         axes[1].plot(blur_snrs, blur_ft, "s:", label="Fine-tuned")
         axes[2].plot(rain_snrs, rain_ft, "^:", label="Fine-tuned")

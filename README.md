@@ -76,6 +76,8 @@ We follow five steps:
 4. **Fine-tuning**: retrain the DL models on distorted images (3 epochs) to see if they can adapt
 5. **SNR sweep**: vary distortion intensity across 7 levels and plot metric vs SNR
 
+All evaluations are performed on **100 validation images** from BDD100K.
+
 ---
 
 ## Results
@@ -248,6 +250,26 @@ City streets are classified reliably under all conditions thanks to their distin
 
 ---
 
+## Summary
+
+Here is what we learned from running the full pipeline:
+
+- **Motion blur** is the hardest distortion to deal with. Enhancement (unsharp mask) barely helps because the information is already gone. However, fine-tuning shows real improvement here, the models learn to work with blurry input when trained on it.
+
+- **Noise** responds well to enhancement. Non-local means denoising consistently recovers performance across all three tasks. Fine-tuning also helps but enhancement alone already does most of the work.
+
+- **Rain** is somewhere in between. The median + bilateral filter cleans up the streaks and recovers a decent amount of performance. Fine-tuning gives a small additional boost on top of that.
+
+- **Classical methods (HOG + SVM)** are more stable under distortion than expected. Motion blur barely affects classification accuracy, probably because HOG captures global edge patterns that don't change much from blur. But the model has trouble telling residential scenes apart from city streets since they look similar at the feature level.
+
+- **Detection confidence** doesn't always match mAP. The model can still make predictions under distortion, but it becomes less confident about them. This is useful to know because in a real system you might want to flag low-confidence detections rather than trust them blindly.
+
+- **Segmentation precision** can stay high even when IoU drops. This means the model predicts less road overall rather than predicting road in wrong places, which is arguably a safer failure mode for a self-driving system.
+
+Overall, the best recovery strategy depends on the distortion: enhancement works for noise and rain, fine-tuning works better for motion blur.
+
+---
+
 ## Project Structure
 
 ```
@@ -277,6 +299,10 @@ Image-processing/
 Download BDD100K from https://www.kaggle.com/datasets/marquis03/bdd100k and place it in `dataset/`.
 
 ```bash
+# Clone the repo
+git clone https://github.com/AshRider1/Image-processing.git
+cd Image-processing
+
 # Install dependencies
 pip install -r requirements.txt
 

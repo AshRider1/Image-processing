@@ -250,6 +250,104 @@ City streets are classified reliably under all conditions thanks to their distin
 
 ---
 
+## Results Tables
+
+### Object Detection: Overall mAP0.5
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.29 | 0.29 | 0.29 |
+| Distorted | 0.08 | 0.12 | 0.09 |
+| Enhanced | 0.16 | 0.11 | 0.19 |
+| Fine-tuned | 0.09 | 0.17 | 0.13 |
+
+### Object Detection: Per-Class AP0.5 (Noise)
+
+| Class | Clean | Distorted | Enhanced | Fine-tuned |
+|-------|-------|-----------|----------|------------|
+| bus | 0.44 | 0.09 | 0.30 | 0.05 |
+| car | 0.35 | 0.18 | 0.26 | 0.26 |
+| person | 0.35 | 0.09 | 0.17 | 0.09 |
+| motor | 0.27 | 0.00 | 0.00 | 0.00 |
+| truck | 0.22 | 0.08 | 0.15 | 0.09 |
+| traffic light | 0.09 | 0.07 | 0.06 | 0.10 |
+
+### Object Detection: Per-Class AP0.5 (Motion Blur)
+
+| Class | Clean | Distorted | Enhanced | Fine-tuned |
+|-------|-------|-----------|----------|------------|
+| bus | 0.44 | 0.27 | 0.24 | 0.29 |
+| car | 0.35 | 0.17 | 0.17 | 0.26 |
+| person | 0.35 | 0.09 | 0.09 | 0.09 |
+| motor | 0.27 | 0.00 | 0.00 | 0.18 |
+| truck | 0.22 | 0.06 | 0.05 | 0.13 |
+| traffic light | 0.09 | 0.09 | 0.09 | 0.09 |
+
+### Object Detection: Per-Class AP0.5 (Rain)
+
+| Class | Clean | Distorted | Enhanced | Fine-tuned |
+|-------|-------|-----------|----------|------------|
+| bus | 0.44 | 0.09 | 0.44 | 0.25 |
+| car | 0.35 | 0.17 | 0.27 | 0.24 |
+| person | 0.35 | 0.09 | 0.18 | 0.09 |
+| motor | 0.27 | 0.00 | 0.00 | 0.00 |
+| truck | 0.22 | 0.09 | 0.19 | 0.09 |
+| traffic light | 0.09 | 0.09 | 0.07 | 0.09 |
+
+### Drivable Area Segmentation: IoU
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.48 | 0.48 | 0.48 |
+| Distorted | 0.37 | 0.41 | 0.35 |
+| Enhanced | 0.33 | 0.45 | 0.41 |
+| Fine-tuned | 0.45 | 0.48 | 0.39 |
+
+### Drivable Area Segmentation: Precision
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.50 | 0.50 | 0.50 |
+| Distorted | 0.40 | 0.55 | 0.37 |
+| Enhanced | 0.39 | 0.54 | 0.49 |
+| Fine-tuned | 0.50 | 0.49 | 0.46 |
+
+### Scene Classification: Overall Accuracy
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.63 | 0.63 | 0.63 |
+| Distorted | 0.57 | 0.65 | 0.57 |
+| Enhanced | 0.61 | 0.64 | 0.60 |
+
+### Scene Classification: Per-Class Accuracy
+
+#### City Street
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.95 | 0.95 | 0.95 |
+| Distorted | 1.00 | 0.85 | 0.95 |
+| Enhanced | 0.98 | 0.80 | 0.90 |
+
+#### Highway
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.35 | 0.35 | 0.35 |
+| Distorted | 0 | 0.7 | 0.00 |
+| Enhanced | 0.17 | 0.7 | 0.45 |
+
+#### Residential
+
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean | 0.00 | 0.00 | 0.00 |
+| Distorted | 0.00 | 0.00 | 0.00 |
+| Enhanced | 0.00 | 0.00 | 0.00 |
+
+---
+
 ## Summary
 
 Here is what we learned from running the full pipeline:

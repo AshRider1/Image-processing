@@ -265,3 +265,23 @@ def run():
     # Comparison charts
     plot_comparison(results)
     plot_comparison_per_class(results)
+
+    # Print results tables
+    print("\nClassification: Overall Accuracy")
+    print(f"{'Condition':<15} {'Noise':<10} {'Motion Blur':<15} {'Rain':<10}")
+    for cond in ["clean", "distorted", "enhanced"]:
+        label = cond.title()
+        n = results.get(f"noise_{cond}" if cond != "clean" else "clean", {}).get("overall", 0)
+        b = results.get(f"motion_blur_{cond}" if cond != "clean" else "clean", {}).get("overall", 0)
+        r = results.get(f"rain_{cond}" if cond != "clean" else "clean", {}).get("overall", 0)
+        print(f"{label:<15} {n:<10.2f} {b:<15.2f} {r:<10.2f}")
+
+    for cls_name in CLASSES:
+        print(f"\nClassification: {cls_name} Accuracy")
+        print(f"{'Condition':<15} {'Noise':<10} {'Motion Blur':<15} {'Rain':<10}")
+        for cond in ["clean", "distorted", "enhanced"]:
+            label = cond.title()
+            n = results.get(f"noise_{cond}" if cond != "clean" else "clean", {}).get(cls_name, 0)
+            b = results.get(f"motion_blur_{cond}" if cond != "clean" else "clean", {}).get(cls_name, 0)
+            r = results.get(f"rain_{cond}" if cond != "clean" else "clean", {}).get(cls_name, 0)
+            print(f"{label:<15} {n:<10.2f} {b:<15.2f} {r:<10.2f}")

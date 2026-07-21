@@ -455,3 +455,22 @@ def run():
                                   all_per_class[f"{name}_enhanced"],
                                   all_per_class[f"{name}_finetuned"], name)
 
+    # Print results tables
+    print("\nOverall mAP0.5")
+    print(f"{'Condition':<15} {'Noise':<10} {'Motion Blur':<15} {'Rain':<10}")
+    for cond in ["clean", "noise_distorted", "noise_enhanced", "noise_finetuned"]:
+        label = cond.replace("noise_", "").replace("_", " ").title() if "noise" in cond else "Clean"
+        n = results.get(cond, results.get("clean", 0))
+        b = results.get(cond.replace("noise", "motion_blur"), results.get("clean", 0))
+        r = results.get(cond.replace("noise", "rain"), results.get("clean", 0))
+        print(f"{label:<15} {n:<10.2f} {b:<15.2f} {r:<10.2f}")
+
+    for dist in DISTORTIONS:
+        print(f"\nPer-Class AP0.5 ({dist})")
+        print(f"{'Class':<15} {'Clean':<10} {'Distorted':<12} {'Enhanced':<12} {'Fine-tuned':<12}")
+        for cls in clean_pc:
+            c = clean_pc[cls]
+            d = all_per_class[f"{dist}_distorted"].get(cls, 0)
+            e = all_per_class[f"{dist}_enhanced"].get(cls, 0)
+            f = all_per_class[f"{dist}_finetuned"].get(cls, 0)
+            print(f"{cls:<15} {c:<10.2f} {d:<12.2f} {e:<12.2f} {f:<12.2f}")

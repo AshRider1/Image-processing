@@ -375,3 +375,22 @@ def run():
     # Comparison charts
     plot_comparison(iou_results)
     plot_precision(prec_results)
+
+    # Print results tables
+    print("\nSegmentation: IoU")
+    print(f"{'Condition':<15} {'Noise':<10} {'Motion Blur':<15} {'Rain':<10}")
+    for cond in ["clean", "distorted", "enhanced", "finetuned"]:
+        label = cond.title()
+        n = iou_results.get(f"noise_{cond}" if cond != "clean" else "clean", 0)
+        b = iou_results.get(f"motion_blur_{cond}" if cond != "clean" else "clean", 0)
+        r = iou_results.get(f"rain_{cond}" if cond != "clean" else "clean", 0)
+        print(f"{label:<15} {n:<10.2f} {b:<15.2f} {r:<10.2f}")
+
+    print("\nSegmentation: Precision")
+    print(f"{'Condition':<15} {'Noise':<10} {'Motion Blur':<15} {'Rain':<10}")
+    for cond in ["clean", "distorted", "enhanced", "finetuned"]:
+        label = cond.title()
+        n = prec_results.get(f"noise_{cond}" if cond != "clean" else "clean", 0)
+        b = prec_results.get(f"motion_blur_{cond}" if cond != "clean" else "clean", 0)
+        r = prec_results.get(f"rain_{cond}" if cond != "clean" else "clean", 0)
+        print(f"{label:<15} {n:<10.2f} {b:<15.2f} {r:<10.2f}")

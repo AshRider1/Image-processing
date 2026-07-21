@@ -134,7 +134,7 @@ These three plots show how detection performance changes as distortion gets stro
 
 ![Performance per SNR](./results/detection/performance_per_snr.png)
 
-For noise, the enhanced line stays above the distorted line, confirming that denoising helps. For motion blur, all three lines are close together, meaning neither enhancement nor fine-tuning can fix the damage. For rain, fine-tuning gives a small advantage at moderate severity levels.
+For noise with high severity, the enhanced line stays above the distorted line, confirming that denoising helps. For motion blur, all three lines are close together, meaning neither enhancement nor fine-tuning managed to fix the damage. For rain, fine-tuning gives a small advantage, and enhancment gives a big adventage at lower SNR.
 
 #### mAP0.5 Comparison (Clean vs Distorted vs Enhanced vs Fine-tuned)
 
@@ -142,7 +142,7 @@ This is the summary chart. Four bars per distortion showing the overall mAP0.5 f
 
 ![Comparison](./results/detection/comparison.png)
 
-The gap between green (clean) and red (distorted) shows how much damage each distortion causes. Blue (enhanced) recovers part of it, with the biggest improvement on rain and noise. Orange (fine-tuned) is competitive with enhancement and sometimes better.
+The gap between green (clean) and red (distorted) shows how much damage each distortion causes. Blue (enhanced) recovers part of it, with the biggest improvement on rain and noise. Orange (fine-tuned) is competitive with enhancement and sometimes better. We can see that noise and rain benefit fron enhancment while motion blur benefits only from fine-tuning.
 
 #### Per-Class AP0.5 Comparison
 
@@ -152,7 +152,7 @@ These break down the comparison chart by object class for each distortion type.
 ![Per-class Motion Blur](./results/detection/comparison_per_class_motion_blur.png)
 ![Per-class Rain](./results/detection/comparison_per_class_rain.png)
 
-Not all classes are affected equally. Buses and cars survive distortion better than smaller objects. Motorcycles drop to near zero under all distortions. Enhancement helps most for larger objects that have enough pixels to benefit from denoising or sharpening.
+Not all classes are affected equally. Enhancement helps most for larger objects that have enough pixels to benefit from denoising or deraining. And as we can see motion blur doesn't benefit much from enhancment.
 
 #### Average Detection Confidence (Clean vs Distorted vs Enhanced vs Fine-tuned)
 
@@ -160,7 +160,7 @@ This chart shows the average confidence of all predictions, grouped by distortio
 
 ![Confidence](./results/detection/confidence.png)
 
-Interestingly, confidence stays relatively stable compared to mAP. This tells us something important: the model doesn't just make fewer predictions, it also becomes less sure about the ones it does make. Rain causes the biggest confidence drop. Fine-tuning on noise actually pushes confidence above the clean baseline.
+Interestingly, confidence stays relatively stable compared to mAP. This tells us something important: the model doesn't just make fewer predictions, it also becomes less sure about the ones it does make. Rain causes the biggest confidence drop. Fine-tuning on noise actually pushes confidence above the clean baseline which may be an indecator of overfitting.
 
 ---
 
@@ -178,7 +178,7 @@ Each row applies a different distortion to the same image. The green overlay is 
 
 ![All Variants](./results/segmentation/all_variants.png)
 
-On clean images the model captures the road surface well. Under noise, the prediction becomes patchy. Motion blur causes the model to either over-predict or under-predict road areas. After enhancement, the predictions generally look closer to the clean version.
+On clean images the model captures the road surface well. Under noise, the prediction becomes patchy. Motion blur doesn't change much. After enhancement, the predictions generally look closer to the clean version.
 
 #### IoU vs SNR (Performance per Distortion Level)
 
@@ -186,7 +186,7 @@ How segmentation IoU changes as distortion gets stronger. Solid = distorted, das
 
 ![Performance per SNR](./results/segmentation/performance_per_snr.png)
 
-The fine-tuned models (dotted) maintain stable IoU across severity levels, showing that adapting to distorted data helps the model stay robust even as image quality drops.
+The fine-tuned models (dotted) maintain stable IoU across severity levels, showing that adapting to distorted data helps the model stay robust even as image quality drops. Enhancment worked good for motion blur but a bit less predictable for Rain and Noise.
 
 #### IoU Comparison (Clean vs Distorted vs Enhanced vs Fine-tuned)
 
@@ -194,7 +194,7 @@ Four bars per distortion showing overall pixel IoU.
 
 ![Comparison](./results/segmentation/comparison.png)
 
-The clean baseline sits around 0.48. Distortion drops it to 0.35-0.41 depending on the type. Enhancement recovers some of the loss. Fine-tuning on motion blur performs best, nearly matching the clean baseline.
+We can see that genrally fine tuning performed the absolute best getting us closer to clean image results, enhancment again worked good for motion blur and rain.
 
 #### Precision (Clean vs Distorted vs Enhanced vs Fine-tuned)
 
@@ -202,7 +202,7 @@ What fraction of the predicted road is actually road, grouped by distortion.
 
 ![Precision](./results/segmentation/precision.png)
 
-Precision tells a different story than IoU. Even when IoU drops, precision can stay high if the model simply predicts less road rather than predicting road in wrong places.
+Precision tells a different story than IoU. It tells us how accurate the model performed, we can see that like we expect from motion blur it wouldn't change much on how precise the model predicts the road as it doesn't shift as much.
 
 ---
 
@@ -220,7 +220,7 @@ These show the HOG features extracted from clean, distorted, and enhanced images
 
 ![All Variants](./results/classification/all_variants.png)
 
-On clean images the edges are sharp and structured. Noise adds random edges everywhere. Motion blur smears them directionally. Rain introduces vertical streak patterns. The enhanced versions recover some of the original structure, but not perfectly.
+We can tell that for most of the noises the enhanced version looks somewhat similar to the clean version which is a good indicator.
 
 #### Accuracy vs SNR (Performance per Distortion Level)
 
@@ -232,11 +232,11 @@ Classification turns out to be more robust than detection. This makes sense: HOG
 
 #### Accuracy Comparison (Clean vs Distorted vs Enhanced)
 
-Overall accuracy for clean, distorted, and enhanced across all distortions. No fine-tuning bar since HOG + SVM is classical.
+Overall accuracy for clean, distorted, and enhanced across all distortions.
 
 ![Comparison](./results/classification/comparison.png)
 
-The accuracy drop is much smaller than what we saw in detection. Noise and rain reduce accuracy by a few percent, and enhancement recovers most of it. Motion blur barely changes accuracy at all.
+The accuracy drop is much smaller than what we saw in detection. Noise and rain reduce accuracy by a few percent, and enhancement recovers most of it. Motion blur barely changes accuracy at all like we would expect.
 
 #### Per-Scene Accuracy Comparison
 
@@ -244,7 +244,7 @@ Accuracy broken down by scene class for each distortion.
 
 ![Per-class Comparison](./results/classification/comparison_per_class.png)
 
-City streets are classified reliably under all conditions thanks to their distinctive features. Highway accuracy varies more since open roads have fewer HOG features. Residential scenes are the hardest to classify in general.
+City streets are classified reliably under all conditions thanks to their distinctive features. Highway accuracy varies more since open roads have fewer HOG features but enhancement does seem to work well. Residential scenes are the hardest to classify in general as they look similar to city streets and the model probably couldn't differ between the 2 using HOG and SVM.
 
 ---
 

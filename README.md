@@ -380,6 +380,7 @@ Image-processing/
 ├── classification.py    # HOG + SVM + accuracy
 ├── requirements.txt
 ├── README.md
+├── presentation.pptx
 ├── dataset/             # BDD100K (not included)
 │   ├── train/
 │   ├── val/

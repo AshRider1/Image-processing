@@ -6,6 +6,7 @@ from enhancement import denoise, deblur, derain
 from detection import run as run_detection
 from segmentation import run as run_segmentation
 from classification import run as run_classification
+from geometric_features import run as run_geometric
 
 DATASET_DIR = os.path.join("dataset", "val", "images")
 RESULTS_DIR = "results"
@@ -60,6 +61,7 @@ if __name__ == "__main__":
         "detection": run_detection,
         "segmentation": run_segmentation,
         "classification": run_classification,
+        "geometric": run_geometric,
     }
 
     if len(sys.argv) > 1:

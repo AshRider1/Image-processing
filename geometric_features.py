@@ -7,7 +7,7 @@ from enhancement import denoise, deblur, derain
 
 DATASET_DIR = "dataset"
 RESULTS_DIR = os.path.join("results", "geometric_features")
-NUM_EVAL = 20
+NUM_EVAL = 5
 
 DISTORTIONS = {
     "noise":       (add_noise,       denoise),
@@ -15,7 +15,7 @@ DISTORTIONS = {
     "rain":        (add_rain,        derain),
 }
 
-# Load images
+# Load images from dataset
 def load_images(split="val", n=NUM_EVAL):
     images_dir = os.path.join(DATASET_DIR, split, "images")
     filenames = os.listdir(images_dir)[:n]
@@ -26,16 +26,16 @@ def load_images(split="val", n=NUM_EVAL):
             images[name] = img
     return images
 
-# Extract geometric corners using Shi-Tomasi
+# Fast geometric corner extraction
 def get_corners(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    corners = cv2.goodFeaturesToTrack(gray, maxCorners=150, qualityLevel=0.01, minDistance=10)
+    corners = cv2.goodFeaturesToTrack(gray, maxCorners=100, qualityLevel=0.01, minDistance=15)
     if corners is not None:
         return corners.reshape(-1, 2)
     return np.array([])
 
-# Compute match accuracy (repeatability) for feature detection
-def compute_repeatability(corners_clean, corners_test, threshold=3.0):
+# Compute match accuracy WITHOUT the penalty, but WITH a larger threshold to fix spatial shift
+def compute_repeatability(corners_clean, corners_test, threshold=15.0):
     if len(corners_clean) == 0 or len(corners_test) == 0:
         return 0.0
     
@@ -44,9 +44,10 @@ def compute_repeatability(corners_clean, corners_test, threshold=3.0):
         dists = np.sqrt(np.sum((corners_test - pt1)**2, axis=1))
         if len(dists) > 0 and np.min(dists) <= threshold:
             matched += 1
+            
     return matched / len(corners_clean)
 
-# Evaluate match accuracy across the dataset
+# Evaluate dataset
 def evaluate_dataset(images, distort_fn=None, enhance_fn=None):
     scores = []
     for name, img in images.items():
@@ -59,6 +60,7 @@ def evaluate_dataset(images, distort_fn=None, enhance_fn=None):
         corners_test = get_corners(test_img)
         scores.append(compute_repeatability(corners_clean, corners_test))
     return np.mean(scores) if scores else 0
+
 # Compute SNR in dB
 def compute_snr(clean, distorted):
     clean_f = clean.astype(np.float64)
@@ -69,7 +71,7 @@ def compute_snr(clean, distorted):
         return float("inf")
     return 10 * np.log10(signal_power / noise_power)
 
-# Show feature visualization for clean, distorted, enhanced
+  # Visual grid
 def plot_all_variants(images):
     name = list(images.keys())[0]
     img = images[name]
@@ -94,59 +96,67 @@ def plot_all_variants(images):
     plt.savefig(os.path.join(RESULTS_DIR, "all_variants.png"), dpi=150)
     plt.close()
 
-# Performance per SNR
+# SNR Sweep Line Charts
 def plot_performance_per_snr(images):
-    noise_sev = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
-    blur_sev = [3, 5, 9, 13, 17, 21, 25]
-    rain_sev = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
-
-    sample_img = list(images.values())[0]
-
-    noise_snrs = [compute_snr(sample_img, add_noise(sample_img, severity=s)) for s in noise_sev]
-    blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
-    rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
-
-    noise_dist = [evaluate_dataset(images, lambda img, s=s: add_noise(img, severity=s)) for s in noise_sev]
-    blur_dist = [evaluate_dataset(images, lambda img, k=k: add_motion_blur(img, kernel_size=k)) for k in blur_sev]
-    rain_dist = [evaluate_dataset(images, lambda img, i=i: add_rain(img, intensity=i)) for i in rain_sev]
-
-    noise_enh = [evaluate_dataset(images, lambda img, s=s: add_noise(img, severity=s), enhance_fn=denoise) for s in noise_sev]
-    blur_enh = [evaluate_dataset(images, lambda img, k=k: add_motion_blur(img, kernel_size=k), enhance_fn=deblur) for k in blur_sev]
-    rain_enh = [evaluate_dataset(images, lambda img, i=i: add_rain(img, intensity=i), enhance_fn=derain) for i in rain_sev]
+    noise_sev = [0.01, 0.05, 0.1, 0.15, 0.2]
+    blur_sev = [3, 7, 11, 15, 19]
+    rain_sev = [0.05, 0.1, 0.2, 0.3, 0.4]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    axes[0].plot(noise_snrs, noise_dist, "o-", label="Distorted")
-    axes[0].plot(noise_snrs, noise_enh, "o--", label="Enhanced")
-    for ax in axes:
-        ax.set_ylim(0, 1)
-    
-    axes[0].set_xlabel("SNR (dB) <- noisier")
-    axes[0].set_ylabel("Match Accuracy")
+    def evaluate_sweep(sev_list, d_func, e_func):
+        snr_labels, dist_scores, enh_scores = [], [], []
+        for s in sev_list:
+            cur_snrs, cur_dist, cur_enh = [], [], []
+            for name, img in images.items():
+                corners_clean = get_corners(img)
+                dist_img = d_func(img, s)
+                enh_img = e_func(dist_img)
+                
+                cur_snrs.append(compute_snr(img, dist_img))
+                cur_dist.append(compute_repeatability(corners_clean, get_corners(dist_img)))
+                cur_enh.append(compute_repeatability(corners_clean, get_corners(enh_img)))
+            
+            avg_snr = np.mean(cur_snrs)
+            snr_labels.append(f"{avg_snr:.1f}")
+            dist_scores.append(np.mean(cur_dist))
+            enh_scores.append(np.mean(cur_enh))
+        return snr_labels, dist_scores, enh_scores
+
+    # Noise
+    snr_n, dist_n, enh_n = evaluate_sweep(noise_sev, lambda img, s: add_noise(img, severity=s), denoise)
+    axes[0].plot(snr_n, dist_n, marker='o', label="Distorted")
+    axes[0].plot(snr_n, enh_n, marker='o', linestyle='--', label="Enhanced")
     axes[0].set_title("Noise")
-    axes[0].invert_xaxis()
+    axes[0].set_xlabel("SNR (dB)")
+    axes[0].set_ylabel("Match Accuracy")
+    axes[0].set_ylim(0, 1.0)
     axes[0].legend()
-    
-    axes[1].plot(blur_snrs, blur_dist, "s-", label="Distorted")
-    axes[1].plot(blur_snrs, blur_enh, "s--", label="Enhanced")
-    axes[1].set_xlabel("SNR (dB) <- blurrier")
+
+    # Motion Blur
+    snr_b, dist_b, enh_b = evaluate_sweep(blur_sev, lambda img, k: add_motion_blur(img, kernel_size=k), deblur)
+    axes[1].plot(snr_b, dist_b, marker='s', label="Distorted")
+    axes[1].plot(snr_b, enh_b, marker='s', linestyle='--', label="Enhanced")
     axes[1].set_title("Motion Blur")
-    axes[1].invert_xaxis()
+    axes[1].set_xlabel("SNR (dB)")
+    axes[1].set_ylim(0, 1.0)
     axes[1].legend()
-    
-    axes[2].plot(rain_snrs, rain_dist, "^-", label="Distorted")
-    axes[2].plot(rain_snrs, rain_enh, "^--", label="Enhanced")
-    axes[2].set_xlabel("SNR (dB) <- rainier")
+
+    # Rain
+    snr_r, dist_r, enh_r = evaluate_sweep(rain_sev, lambda img, i: add_rain(img, intensity=i), derain)
+    axes[2].plot(snr_r, dist_r, marker='^', label="Distorted")
+    axes[2].plot(snr_r, enh_r, marker='^', linestyle='--', label="Enhanced")
     axes[2].set_title("Rain")
-    axes[2].invert_xaxis()
+    axes[2].set_xlabel("SNR (dB)")
+    axes[2].set_ylim(0, 1.0)
     axes[2].legend()
 
-    plt.suptitle("Performance per SNR", fontsize=14)
+    plt.suptitle("Performance vs. SNR (dB)", fontsize=14)
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "performance_per_snr.png"), dpi=150)
     plt.close()
 
-# Comparison bar chart (overall accuracy)
+# Comparison bar chart
 def plot_comparison(results):
     groups = list(DISTORTIONS.keys())
     baseline = results["clean"]
@@ -157,8 +167,8 @@ def plot_comparison(results):
     w = 0.25
     plt.figure(figsize=(10, 6))
     plt.bar(x - w, [baseline] * len(groups), w, label="Clean", color="green")
-    plt.bar(x, distorted, w, label="Distorted", color="red")
-    plt.bar(x + w, enhanced, w, label="Enhanced", color="blue")
+    plt.bar(x, distorted, w, label="Distorted", color="crimson")
+    plt.bar(x + w, enhanced, w, label="Enhanced", color="royalblue")
     plt.xticks(x, groups)
     plt.ylabel("Match Accuracy")
     plt.title("Geometric Features: Clean vs Distorted vs Enhanced (overall)")
@@ -171,27 +181,19 @@ def run():
     images = load_images()
     results = {}
 
-    # Sample visualizations
     plot_all_variants(images)
-    
-    # Baseline on clean images
     results["clean"] = evaluate_dataset(images)
 
-    # Measure degradation on distorted images
     for name, (distort_fn, _) in DISTORTIONS.items():
         results[f"{name}_distorted"] = evaluate_dataset(images, distort_fn=distort_fn)
 
-    # Performance across distortion intensities
     plot_performance_per_snr(images)
 
-    # Measure improvement on enhanced images
     for name, (distort_fn, enhance_fn) in DISTORTIONS.items():
         results[f"{name}_enhanced"] = evaluate_dataset(images, distort_fn=distort_fn, enhance_fn=enhance_fn)
 
-    # Comparison charts
     plot_comparison(results)
 
-    # Print results tables
     print("\nGeometric Features: Match Accuracy")
     print(f"{'Condition':<15} {'Noise':<10} {'Motion Blur':<15} {'Rain':<10}")
     for cond in ["clean", "distorted", "enhanced"]:

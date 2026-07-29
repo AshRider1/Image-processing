@@ -98,12 +98,9 @@ def plot_all_variants(images):
 
 # SNR Sweep Line Charts
 def plot_performance_per_snr(images):
-    # המערכים בדיוק כמו בטאסק השני
     noise_sev = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
     blur_sev = [3, 5, 9, 13, 17, 21, 25]
     rain_sev = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
-
-    # לוקחים תמונה אחת לדוגמה כדי לחשב את צירי ה-SNR כמו בקוד שלך
     sample_img_name = list(images.keys())[0]
     sample_img = images[sample_img_name]
     
@@ -111,7 +108,6 @@ def plot_performance_per_snr(images):
     blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
     rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
 
-    # פונקציית עזר להרצת הבדיקות על הפינות הגיאומטריות
     def evaluate_sweep(sev_list, d_func, e_func):
         dist_scores, enh_scores = [], []
         for s in sev_list:

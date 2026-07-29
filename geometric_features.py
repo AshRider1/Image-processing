@@ -98,60 +98,67 @@ def plot_all_variants(images):
 
 # SNR Sweep Line Charts
 def plot_performance_per_snr(images):
-    noise_sev = [0.01, 0.05, 0.1, 0.15, 0.2]
-    blur_sev = [3, 7, 11, 15, 19]
-    rain_sev = [0.05, 0.1, 0.2, 0.3, 0.4]
+    # המערכים בדיוק כמו בטאסק השני
+    noise_sev = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
+    blur_sev = [3, 5, 9, 13, 17, 21, 25]
+    rain_sev = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    # לוקחים תמונה אחת לדוגמה כדי לחשב את צירי ה-SNR כמו בקוד שלך
+    sample_img_name = list(images.keys())[0]
+    sample_img = images[sample_img_name]
+    
+    noise_snrs = [compute_snr(sample_img, add_noise(sample_img, severity=s)) for s in noise_sev]
+    blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
+    rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
 
+    # פונקציית עזר להרצת הבדיקות על הפינות הגיאומטריות
     def evaluate_sweep(sev_list, d_func, e_func):
-        snr_labels, dist_scores, enh_scores = [], [], []
+        dist_scores, enh_scores = [], []
         for s in sev_list:
-            cur_snrs, cur_dist, cur_enh = [], [], []
+            cur_dist, cur_enh = [], []
             for name, img in images.items():
                 corners_clean = get_corners(img)
                 dist_img = d_func(img, s)
                 enh_img = e_func(dist_img)
                 
-                cur_snrs.append(compute_snr(img, dist_img))
                 cur_dist.append(compute_repeatability(corners_clean, get_corners(dist_img)))
                 cur_enh.append(compute_repeatability(corners_clean, get_corners(enh_img)))
-            
-            avg_snr = np.mean(cur_snrs)
-            snr_labels.append(f"{avg_snr:.1f}")
             dist_scores.append(np.mean(cur_dist))
             enh_scores.append(np.mean(cur_enh))
-        return snr_labels, dist_scores, enh_scores
+        return dist_scores, enh_scores
 
-    # Noise
-    snr_n, dist_n, enh_n = evaluate_sweep(noise_sev, lambda img, s: add_noise(img, severity=s), denoise)
-    axes[0].plot(snr_n, dist_n, marker='o', label="Distorted")
-    axes[0].plot(snr_n, enh_n, marker='o', linestyle='--', label="Enhanced")
-    axes[0].set_title("Noise")
-    axes[0].set_xlabel("SNR (dB)")
+    noise_dist, noise_enh = evaluate_sweep(noise_sev, lambda img, s: add_noise(img, severity=s), denoise)
+    blur_dist, blur_enh = evaluate_sweep(blur_sev, lambda img, k: add_motion_blur(img, kernel_size=k), deblur)
+    rain_dist, rain_enh = evaluate_sweep(rain_sev, lambda img, i: add_rain(img, intensity=i), derain)
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+    axes[0].plot(noise_snrs, noise_dist, "o-", label="Distorted")
+    axes[0].plot(noise_snrs, noise_enh, "o--", label="Enhanced")
+    for ax in axes:
+        ax.set_ylim(0, 1.0)
+
+    axes[0].set_xlabel("SNR (dB) <- noisier")
     axes[0].set_ylabel("Match Accuracy")
-    axes[0].set_ylim(0, 1.0)
+    axes[0].set_title("Noise")
+    axes[0].invert_xaxis()
     axes[0].legend()
 
-    # Motion Blur
-    snr_b, dist_b, enh_b = evaluate_sweep(blur_sev, lambda img, k: add_motion_blur(img, kernel_size=k), deblur)
-    axes[1].plot(snr_b, dist_b, marker='s', label="Distorted")
-    axes[1].plot(snr_b, enh_b, marker='s', linestyle='--', label="Enhanced")
+    axes[1].plot(blur_snrs, blur_dist, "s-", label="Distorted")
+    axes[1].plot(blur_snrs, blur_enh, "s--", label="Enhanced")
+    axes[1].set_xlabel("SNR (dB) <- blurrier")
     axes[1].set_title("Motion Blur")
-    axes[1].set_xlabel("SNR (dB)")
-    axes[1].set_ylim(0, 1.0)
+    axes[1].invert_xaxis()
     axes[1].legend()
 
-    # Rain
-    snr_r, dist_r, enh_r = evaluate_sweep(rain_sev, lambda img, i: add_rain(img, intensity=i), derain)
-    axes[2].plot(snr_r, dist_r, marker='^', label="Distorted")
-    axes[2].plot(snr_r, enh_r, marker='^', linestyle='--', label="Enhanced")
+    axes[2].plot(rain_snrs, rain_dist, "^-", label="Distorted")
+    axes[2].plot(rain_snrs, rain_enh, "^--", label="Enhanced")
+    axes[2].set_xlabel("SNR (dB) <- rainier")
     axes[2].set_title("Rain")
-    axes[2].set_xlabel("SNR (dB)")
-    axes[2].set_ylim(0, 1.0)
+    axes[2].invert_xaxis()
     axes[2].legend()
 
-    plt.suptitle("Performance vs. SNR (dB)", fontsize=14)
+    plt.suptitle("Performance per SNR", fontsize=14)
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "performance_per_snr.png"), dpi=150)
     plt.close()

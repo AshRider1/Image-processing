@@ -24,6 +24,8 @@ Label every pixel as road or not road. We use SegFormer-b0, a deep learning mode
 ### Task 3: Scene Classification (HOG + SVM)
 Classify the entire image as city street, highway, or residential. We extract HOG features which capture edge patterns and feed them to an SVM classifier trained on BDD100K labels.
 
+### Task 4: Geometric Feature Extraction (Shi-Tomasi)
+Extract low-level geometric features from the image. We use the classic Shi-Tomasi corner detection algorithm. Unlike deep learning models, this relies purely on pixel-level gradients without any semantic understanding of the scene.
 
 ---
 
@@ -63,6 +65,7 @@ Each distortion is paired with a classical technique designed to undo the damage
 | Segmentation | Pixel IoU | How much predicted road overlaps with actual road |
 | Segmentation | Precision | Whether the model is predicting road where there is none |
 | Classification | Accuracy | How often the model gets the scene right |
+| Geometric Features | Match Accuracy | Percentage of clean-image corners successfully re-detected under distortion |
 
 ---
 
@@ -249,7 +252,25 @@ Accuracy broken down by scene class for each distortion.
 City streets are classified reliably under all conditions thanks to their distinctive features. Highway accuracy varies more since open roads have fewer HOG features but enhancement does seem to work well. Residential scenes are the hardest to classify in general as they look similar to city streets and the model probably couldn't differ between the 2 using HOG and SVM.
 
 ---
+### Geometric Feature Extraction (Shi-Tomasi)
 
+#### Clean vs Distorted vs Enhanced
+This shows the extracted corners on the images. Each row applies a different distortion.
+![All Variants](./results/geometric_features/all_variants.png)
+
+Unlike High-level deep learning tasks, enhancement filters like denoising or blurring can actually hurt low-level geometric features. This is because enhancement smooths out the sharp pixel gradients required to detect corners.
+
+#### Match Accuracy vs SNR (Performance per Distortion Level)
+These plots show how corner repeatability changes as distortion gets stronger. Solid = distorted, dashed = enhanced.
+![Performance per SNR](./results/geometric_features/performance_per_snr.png)
+
+You can see the fundamental difference between Low-level and High-level tasks: the Enhanced line often falls below the Distorted line, especially for blur and noise, proving that smoothing destroys geometric data.
+
+#### Match Accuracy Comparison (Clean vs Distorted vs Enhanced)
+Overall match accuracy for clean, distorted, and enhanced across all distortions.
+![Comparison](./results/geometric_features/comparison.png)
+
+---
 ## Results Tables
 
 ### Object Detection: Overall mAP0.5
@@ -346,6 +367,14 @@ City streets are classified reliably under all conditions thanks to their distin
 | Distorted | 0.00 | 0.00 | 0.00 |
 | Enhanced | 0.00 | 0.00 | 0.00 |
 
+
+### Geometric Features: Match Accuracy
+| Condition | Noise | Motion Blur | Rain |
+|-----------|-------|-------------|------|
+| Clean     | 1.00  | 1.00        | 1.00 |
+| Distorted | 0.73  | 0.63        | 0.66 |
+| Enhanced  | 0.61  | 0.65        | 0.35 |
+
 ---
 
 ## Summary
@@ -364,6 +393,9 @@ Here is what we learned from running the full pipeline:
 
 - **Segmentation precision** can stay high even when IoU drops. This means the model predicts less road overall rather than predicting road in wrong places, which is arguably a safer failure mode for a self-driving system.
 
+
+- **Low-level vs High-level tasks:** While enhancement filters help deep learning models recover semantics, they actively destroy low-level geometric features. Smoothing filters erase the sharp gradients that algorithms like Shi-Tomasi rely on, causing enhanced images to perform worse than distorted ones in feature matching.
+
 Overall, the best recovery strategy depends on the distortion: enhancement works for noise and rain, fine-tuning works better for motion blur.
 
 ---
@@ -378,6 +410,7 @@ Image-processing/
 ├── detection.py         # YOLOv8 + mAP
 ├── segmentation.py      # SegFormer + IoU
 ├── classification.py    # HOG + SVM + accuracy
+├── geometric_features.py # Shi-Tomasi + Match Accuracy
 ├── requirements.txt
 ├── README.md
 ├── presentation.pptx
@@ -388,6 +421,7 @@ Image-processing/
 └── results/             # Generated figures
     ├── detection/
     ├── segmentation/
+    ├── geometric_features/
     └── classification/
 ```
 
@@ -412,5 +446,6 @@ python main.py
 python main.py detection
 python main.py segmentation
 python main.py classification
+python main.py geometric_features
 python main.py distortions
 ```

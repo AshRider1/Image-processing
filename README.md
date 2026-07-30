@@ -372,8 +372,8 @@ Overall match accuracy for clean, distorted, and enhanced across all distortions
 | Condition | Noise | Motion Blur | Rain |
 |-----------|-------|-------------|------|
 | Clean     | 1.00  | 1.00        | 1.00 |
-| Distorted | 0.73  | 0.63        | 0.66 |
-| Enhanced  | 0.61  | 0.65        | 0.35 |
+| Distorted | 0.66  | 0.62        | 0.58 |
+| Enhanced  | 0.50  | 0.63        | 0.31 |
 
 ---
 

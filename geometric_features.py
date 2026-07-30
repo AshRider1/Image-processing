@@ -34,7 +34,7 @@ def get_corners(img):
         return corners.reshape(-1, 2)
     return np.array([])
 
-# Compute match accuracy WITHOUT the penalty, but WITH a larger threshold to fix spatial shift
+# Compute match accuracy
 def compute_repeatability(corners_clean, corners_test, threshold=15.0):
     if len(corners_clean) == 0 or len(corners_test) == 0:
         return 0.0
@@ -205,6 +205,3 @@ def run():
         b = results.get(f"motion_blur_{cond}" if cond != "clean" else "clean", 0)
         r = results.get(f"rain_{cond}" if cond != "clean" else "clean", 0)
         print(f"{label:<15} {n:<10.2f} {b:<15.2f} {r:<10.2f}")
-
-if __name__ == "__main__":
-    run()

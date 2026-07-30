@@ -7,7 +7,7 @@ from enhancement import denoise, deblur, derain
 
 DATASET_DIR = "dataset"
 RESULTS_DIR = os.path.join("results", "geometric_features")
-NUM_EVAL = 5
+NUM_EVAL = 20
 
 DISTORTIONS = {
     "noise":       (add_noise,       denoise),
@@ -38,13 +38,13 @@ def get_corners(img):
 def compute_repeatability(corners_clean, corners_test, threshold=15.0):
     if len(corners_clean) == 0 or len(corners_test) == 0:
         return 0.0
-    
+
     matched = 0
     for pt1 in corners_clean:
         dists = np.sqrt(np.sum((corners_test - pt1)**2, axis=1))
         if len(dists) > 0 and np.min(dists) <= threshold:
             matched += 1
-            
+
     return matched / len(corners_clean)
 
 # Evaluate dataset
@@ -75,7 +75,7 @@ def compute_snr(clean, distorted):
 def plot_all_variants(images):
     name = list(images.keys())[0]
     img = images[name]
-    
+
     def draw(version):
         display = cv2.cvtColor(version, cv2.COLOR_BGR2RGB).copy()
         corners = get_corners(version)
@@ -90,7 +90,7 @@ def plot_all_variants(images):
             axes[row][col].imshow(draw(v))
             axes[row][col].set_title(title)
             axes[row][col].axis("off")
-            
+
     plt.suptitle("Geometric Features: Clean vs Distorted vs Enhanced", fontsize=14)
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, "all_variants.png"), dpi=150)
@@ -103,7 +103,7 @@ def plot_performance_per_snr(images):
     rain_sev = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
     sample_img_name = list(images.keys())[0]
     sample_img = images[sample_img_name]
-    
+
     noise_snrs = [compute_snr(sample_img, add_noise(sample_img, severity=s)) for s in noise_sev]
     blur_snrs = [compute_snr(sample_img, add_motion_blur(sample_img, kernel_size=k)) for k in blur_sev]
     rain_snrs = [compute_snr(sample_img, add_rain(sample_img, intensity=i)) for i in rain_sev]
@@ -116,7 +116,7 @@ def plot_performance_per_snr(images):
                 corners_clean = get_corners(img)
                 dist_img = d_func(img, s)
                 enh_img = e_func(dist_img)
-                
+
                 cur_dist.append(compute_repeatability(corners_clean, get_corners(dist_img)))
                 cur_enh.append(compute_repeatability(corners_clean, get_corners(enh_img)))
             dist_scores.append(np.mean(cur_dist))

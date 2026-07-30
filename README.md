@@ -446,6 +446,6 @@ python main.py
 python main.py detection
 python main.py segmentation
 python main.py classification
-python main.py geometric_features
+python main.py geometric
 python main.py distortions
 ```

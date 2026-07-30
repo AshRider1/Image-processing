@@ -7,7 +7,7 @@ from enhancement import denoise, deblur, derain
 
 DATASET_DIR = "dataset"
 RESULTS_DIR = os.path.join("results", "geometric_features")
-NUM_EVAL = 20
+NUM_EVAL = 100
 
 DISTORTIONS = {
     "noise":       (add_noise,       denoise),

@@ -9,7 +9,7 @@ We use BDD100K, a large-scale driving dataset with 70K training and 10K validati
 - Drivable area polygons showing where the car can drive
 - Scene labels like city street, highway, or residential
 
-This means we can run three completely different tasks on the same images.
+This means we can run multiple different tasks on the same images.
 
 ---
 
